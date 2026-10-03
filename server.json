@@ -6,7 +6,7 @@
     "url": "https://github.com/MLTCorp/convertfilefast-mcp",
     "source": "github"
   },
-  "version": "0.1.6",
+  "version": "0.1.7",
   "remotes": [
     {
       "type": "streamable-http",
@@ -26,7 +26,7 @@
     {
       "registryType": "pypi",
       "identifier": "convertfilefast-mcp",
-      "version": "0.1.5",
+      "version": "0.1.6",
       "transport": {
         "type": "stdio"
       },
@@ -43,7 +43,7 @@
     {
       "registryType": "npm",
       "identifier": "convertfilefast-mcp",
-      "version": "0.1.4",
+      "version": "0.1.5",
       "transport": {
         "type": "stdio"
       },

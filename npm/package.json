@@ -1,6 +1,6 @@
 {
   "name": "convertfilefast-mcp",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Convert 50+ file formats, run PDF/image operations, create billing links, and report feedback via the ConvertFileFast API (MCP server).",
   "bin": {
     "convertfilefast-mcp": "index.js"

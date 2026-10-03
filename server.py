@@ -35,17 +35,21 @@ Configuration:
   CONVERTFILEFAST_MAX_BASE64_MB          max decoded base64 input size (default 60)
   CONVERTFILEFAST_OAUTH_ENABLED          if true, register the Supabase OAuth provider (default: off)
   CONVERTFILEFAST_SUPABASE_PROJECT_URL   Supabase project URL; required when OAuth is enabled
+  CONVERTFILEFAST_POSTHOG_KEY            count tool calls in PostHog (default: off). Set ONLY on the
+                                         hosted server: local installs never send usage data.
 """
 
 from __future__ import annotations
 
 import base64
+import hashlib
 import ipaddress
 import mimetypes
 import os
 import re
 import secrets
 import socket
+import threading
 import time
 from pathlib import Path
 from typing import Annotated, Literal, Optional
@@ -54,6 +58,7 @@ from urllib.parse import quote, urlparse
 import httpx
 from fastmcp import FastMCP
 from fastmcp.server.auth.providers.supabase import SupabaseProvider
+from fastmcp.server.middleware import Middleware, MiddlewareContext
 from pydantic import Field
 from starlette.requests import Request
 from starlette.responses import FileResponse, JSONResponse, Response
@@ -74,6 +79,10 @@ SITE_URL = "https://www.convertfilefast.com"
 # docs/exec-plans/plans/plan-003-oauth-mcp.md for the coexistence tradeoff. ---
 OAUTH_ENABLED = os.environ.get("CONVERTFILEFAST_OAUTH_ENABLED", "").lower() in {"1", "true", "yes", "on"}
 SUPABASE_PROJECT_URL = os.environ.get("CONVERTFILEFAST_SUPABASE_PROJECT_URL", "")
+
+# Usage analytics -- only the hosted server sets this (deploy-mcp.yml).
+POSTHOG_KEY = os.environ.get("CONVERTFILEFAST_POSTHOG_KEY", "")
+POSTHOG_HOST = os.environ.get("CONVERTFILEFAST_POSTHOG_HOST", "https://us.i.posthog.com").rstrip("/")
 
 
 def _build_auth_provider() -> SupabaseProvider | None:
@@ -213,6 +222,79 @@ def _request_api_key() -> str:
 
 def _api_key() -> str:
     return _request_api_key() or API_KEY
+
+
+# --------------------------------------------------------------------------- #
+# Usage analytics (hosted server only)
+# --------------------------------------------------------------------------- #
+# Why: an agent that tries the remote MCP without a key gets the "how to get a
+# key" answer and leaves. The API never sees that call, so the top of the agent
+# funnel was invisible. Each tool call on the hosted server emits one
+# `mcp_tool_call` event: which tool, whether a key came with it, and how it
+# ended. No arguments, file names, URLs or the key itself are sent -- the key
+# only becomes a one-way hash so repeat callers can be counted.
+def _caller_id(key: str) -> str:
+    if not key:
+        return "mcp-anonymous"
+    return "mcpkey-" + hashlib.sha256(key.encode()).hexdigest()[:16]
+
+
+def _outcome(result: object) -> str:
+    content = getattr(result, "structured_content", None)
+    if isinstance(content, dict):
+        if "get_api_key" in content:
+            return "missing_key"
+        if content.get("status") == "error":
+            return "error"
+    return "ok"
+
+
+def _client_name(context: MiddlewareContext) -> str | None:
+    try:
+        return context.fastmcp_context.session.client_params.clientInfo.name
+    except Exception:
+        return None
+
+
+def _post_event(payload: dict) -> None:
+    try:
+        httpx.post(f"{POSTHOG_HOST}/i/v0/e/", json=payload, timeout=3)
+    except Exception:
+        pass  # analytics must never break a tool call
+
+
+def _capture_tool_call(tool: str, key: str, outcome: str, client: str | None) -> None:
+    if not POSTHOG_KEY:
+        return
+    payload = {
+        "api_key": POSTHOG_KEY,
+        "event": "mcp_tool_call",
+        "distinct_id": _caller_id(key),
+        "properties": {
+            "tool": tool,
+            "has_key": bool(key),
+            "outcome": outcome,
+            "mcp_client": client,
+            "$lib": "convertfilefast-mcp",
+            "$process_person_profile": bool(key),
+        },
+    }
+    threading.Thread(target=_post_event, args=(payload,), daemon=True).start()
+
+
+class _UsageMiddleware(Middleware):
+    async def on_call_tool(self, context, call_next):
+        key = _request_api_key()
+        try:
+            result = await call_next(context)
+        except Exception:
+            _capture_tool_call(context.message.name, key, "exception", _client_name(context))
+            raise
+        _capture_tool_call(context.message.name, key, _outcome(result), _client_name(context))
+        return result
+
+
+mcp.add_middleware(_UsageMiddleware())
 
 
 # How to get a key, returned whenever a call fails for lack of one. Agents that

@@ -1,0 +1,31 @@
+# Publica o launcher npm (npx convertfilefast-mcp) sem token: trusted publishing (OIDC).
+#
+# Roda AQUI, no repositorio publico, e nao no monorepo privado: o npm exige que
+# `repository.url` do package.json seja exatamente o repo que publica, e so gera
+# o selo de procedencia (provenance) a partir de repositorio publico.
+# Configuracao no npmjs.com (pacote > Settings > Trusted Publisher): GitHub Actions,
+# MLTCorp / convertfilefast-mcp / publish-npm.yml.
+#
+# Este arquivo vem de mcp/mirror/publish-npm.yml no monorepo; edite la.
+name: Publish npm launcher
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      # Trusted publishing pede npm >= 11.5.1.
+      - run: npm install -g npm@latest
+      - run: npm publish --access public
+        working-directory: npm

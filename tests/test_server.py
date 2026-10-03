@@ -246,3 +246,63 @@ def test_build_auth_provider_builds_supabase_provider_when_enabled(monkeypatch):
     # Resource URL is what FastMCP advertises in RFC 9728 protected-resource
     # metadata and binds RequireAuthMiddleware to for the /mcp route.
     assert str(provider._get_resource_url("/mcp")) == "https://mcp.convertfilefast.com/mcp"
+
+
+# --- usage analytics (hosted server only) -----------------------------------
+
+
+class _SyncThread:
+    def __init__(self, target, args=(), daemon=None):
+        self._target, self._args = target, args
+
+    def start(self):
+        self._target(*self._args)
+
+
+def test_usage_analytics_is_off_without_key(monkeypatch):
+    # Local installs never set CONVERTFILEFAST_POSTHOG_KEY: nothing may leave the machine.
+    monkeypatch.setattr(server, "POSTHOG_KEY", "")
+
+    def boom(*args, **kwargs):
+        raise AssertionError("no analytics thread without a key")
+
+    monkeypatch.setattr(server.threading, "Thread", boom)
+    server._capture_tool_call("convert_file", "", "ok", None)
+
+
+def test_tool_call_is_counted_without_leaking_arguments(monkeypatch):
+    import asyncio
+
+    from fastmcp import Client
+
+    sent = []
+    monkeypatch.setattr(server, "POSTHOG_KEY", "phc_test")
+    monkeypatch.setattr(server, "API_KEY", "")
+    monkeypatch.setattr(server.threading, "Thread", _SyncThread)
+    monkeypatch.setattr(server.httpx, "post", lambda url, json, timeout: sent.append(json))
+
+    async def call():
+        async with Client(server.mcp) as client:
+            await client.call_tool(
+                "convert_file",
+                {"file_base64": "AAAA", "filename": "contrato-secreto.docx", "target_format": "pdf"},
+                raise_on_error=False,
+            )
+
+    asyncio.run(call())
+
+    assert len(sent) == 1
+    event = sent[0]
+    assert event["event"] == "mcp_tool_call"
+    assert event["distinct_id"] == "mcp-anonymous"
+    assert event["properties"]["tool"] == "convert_file"
+    assert event["properties"]["has_key"] is False
+    assert event["properties"]["outcome"] == "missing_key"
+    assert "contrato-secreto" not in str(event) and "AAAA" not in str(event)
+
+
+def test_caller_id_is_a_one_way_hash_of_the_key():
+    caller = server._caller_id("cff_supersecret123")
+    assert caller.startswith("mcpkey-")
+    assert "supersecret" not in caller
+    assert caller == server._caller_id("cff_supersecret123")
