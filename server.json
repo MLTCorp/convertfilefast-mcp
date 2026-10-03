@@ -1,0 +1,61 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.MLTCorp/convertfilefast",
+  "description": "Convert files, run PDF/image tools, create billing links, and report feedback.",
+  "repository": {
+    "url": "https://github.com/MLTCorp/convertfilefast-mcp",
+    "source": "github"
+  },
+  "version": "0.1.6",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.convertfilefast.com/mcp",
+      "headers": [
+        {
+          "name": "X-API-Key",
+          "description": "Your ConvertFileFast API key (starts with cff_). Create one at https://www.convertfilefast.com/signup",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": true
+        }
+      ]
+    }
+  ],
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "convertfilefast-mcp",
+      "version": "0.1.5",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "CONVERTFILEFAST_API_KEY",
+          "description": "Your ConvertFileFast API key (starts with cff_). Create one at https://www.convertfilefast.com/signup",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": true
+        }
+      ]
+    },
+    {
+      "registryType": "npm",
+      "identifier": "convertfilefast-mcp",
+      "version": "0.1.4",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "CONVERTFILEFAST_API_KEY",
+          "description": "Your ConvertFileFast API key (starts with cff_). Create one at https://www.convertfilefast.com/signup",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

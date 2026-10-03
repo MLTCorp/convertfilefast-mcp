@@ -1,0 +1,29 @@
+{
+  "name": "convertfilefast-mcp",
+  "version": "0.1.4",
+  "description": "Convert 50+ file formats, run PDF/image operations, create billing links, and report feedback via the ConvertFileFast API (MCP server).",
+  "bin": {
+    "convertfilefast-mcp": "index.js"
+  },
+  "mcpName": "io.github.MLTCorp/convertfilefast",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "pdf",
+    "file-conversion",
+    "convert"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MLTCorp/convertfilefast-mcp.git"
+  },
+  "homepage": "https://github.com/MLTCorp/convertfilefast-mcp",
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "index.js",
+    "README.md"
+  ]
+}
